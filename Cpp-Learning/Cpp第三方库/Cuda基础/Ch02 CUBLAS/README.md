@@ -40,7 +40,7 @@ cuBLAS 及其变体由主机端调用，而 cuBLAS-DX 提供的功能在文档�
 矩阵乘法是深度学习中最重要的运算，而 cuBLAS 对操作融合的支持用起来比较困难，CUTLASS 则支持实现这种融合。例如神经网络中的：
 
 $$
-Y=\operatorname{ReLU}(XW+b)
+Y=\text{ReLU}(XW+b)
 $$
 
 - 分开执行：调用 cuBLAS 计算 $XW$，把结果写入显存，再启动后续内核，读取结果、加上偏置 $b$、执行 ReLU。
