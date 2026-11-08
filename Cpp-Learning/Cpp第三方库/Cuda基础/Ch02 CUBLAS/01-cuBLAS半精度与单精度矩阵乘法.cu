@@ -1,3 +1,4 @@
+#include <cublas_api.h>
 #include <stdio.h>
 #include <cuda_runtime.h>
 #include <cublas_v2.h>
@@ -26,8 +27,10 @@ cudaError_t ErrorCheck(cudaError_t error_code, const char* filename, int lineNum
 cublasStatus_t CublasErrorCheck(cublasStatus_t error_code, const char* filename, int lineNumber)
 {
     if (error_code != CUBLAS_STATUS_SUCCESS) {
-        printf("cuBLAS error: code=%d, file=%s, line=%d\n",
+        printf("cuBLAS error: code=%d, name=%s, descriptions=%s, file=%s, line=%d\n",
                static_cast<int>(error_code),
+               cublasGetStatusName(error_code),
+               cublasGetStatusString(error_code),
                filename,
                lineNumber);
     }
@@ -78,9 +81,9 @@ int main()
         7.0f, 8.0f
     };
 
-    float C_cpu[M * N];
-    float C_cublas_s[M * N];
-    float C_cublas_h[M * N];
+    float C_cpu[M * N];//存放CPU计算结果
+    float C_cublas_s[M * N];//存放cuBLAS单精度计算结果
+    float C_cublas_h[M * N];//存放cuBLAS半精度计算结果
 
     // CPU 计算。
     CpuMatmul(A, B, C_cpu);
@@ -113,18 +116,19 @@ int main()
     const float beta = 0.0f;
 
     // 单精度矩阵乘法。
-    // cuBLAS 按列主序解释数据，利用 Cᵀ = Bᵀ × Aᵀ。
+    // C/C++按照行主序解释数据，cuBLAS 按列主序解释数据，也就是说输入进去的数据在cuBLAS看来是转置后的原数据。
+    // 利用 Cᵀ = Bᵀ × Aᵀ，最后打印时把一列打印为一行，就能得到正确的结果。
     CublasErrorCheck(
-        cublasSgemm(
+        cublasSgemm(//C=AB 在 cuBLAS 中实际执行的是 Cᵀ = αBᵀAᵀ+βCᵀ
             handle,
+            CUBLAS_OP_N,//CUBLAS_OP_N 表示 No Transpose(不转置)，也就是不把 Aᵀ 转置为 A，Bᵀ 转置为 B。
             CUBLAS_OP_N,
-            CUBLAS_OP_N,
-            N, M, K,
+            N, M, K,//Aᵀ形状是 K×M，Bᵀ形状是 N×K，Cᵀ形状是 N×M。
             &alpha,
-            d_B, N,
-            d_A, K,
+            d_B, N,//列主序，B有 K 行，N 列。
+            d_A, K,//列主序，A有 M 行，K 列。
             &beta,
-            d_C, N
+            d_C, N//列主序，C有 M 行，N 列。
         ),
         __FILE__, __LINE__
     );
