@@ -30,7 +30,7 @@ cuBLASDx (Device Extensions) 是一个设备端 API 扩展，用于在 CUDA 内�
 
 - 普通 cuBLAS：在 CPU 端的 C++ 代码里调用 `cublasSgemm(...)`，由 cuBLAS 启动 GPU 内核执行矩阵乘法。
 
-- cuBLASDx：你自己启动 GPU 内核，内核中的 GPU 线程通过 cuBLASDx 协作完成矩阵乘法，再继续执行你写的其他计算。
+- cuBLASDx：自己启动 GPU 内核，内核中的 GPU 线程通过 cuBLASDx 协作完成矩阵乘法，再继续执行写的其他计算。
 
 # CUTLASS
 全称为 CUDA Templates for Linear Algebra Subroutines
@@ -47,3 +47,35 @@ $$
 - 融合执行：用 CUTLASS 构建一个内核，在矩阵乘法结果写回显存前，直接完成加偏置和 ReLU，最后写出 $Y$。
 
 顺便说明，Flash Attention 使用的是经过优化的 CUDA 内核，未使用 CUTLASS。
+
+# 为什么引入 cuBLAS-Lt 和 cuBLAS-Xt
+
+## 传统 cuBLAS 的历史包袱
+
+传统的 cuBLAS 严格遵循 1970 年代确立的 BLAS 标准 (如 `cublasSgemm` )，其函数签名是完全固定的：
+
+$$
+C = \alpha \cdot \text{oprator}(A)\text{oprator}(B) + \beta \cdot C
+$$
+
+这种设计带来了三个致命限制：
+
+- 无法扩展新特性：如果想在矩阵乘法后顺便加上 Bias 或 ReLU/GELU 激活，传统 BLAS 接口根本没有地方传这些参数。
+- 黑盒算法调度：内部自动选择底层 Kernel，开发者无法提前搜索、缓存最优算法，也无法精细控制 Workspace 大小，导致深度学习框架在反复执行固定形状的 GEMM 时产生不必要的调度开销。
+- 内存布局受限：死守 Fortran 的列主序，对 Tensor Core 偏爱的交错布局(Interleaved Layout，如 `COL32`)支持极差。
+
+## 为什么需要 cuBLAS-Lt (面向 AI 与极致性能)
+
+cuBLAS-Lt (Lightweight) 放弃了传统 BLAS 的函数签名，改用模块化描述符架构，专为现代深度学习和 Tensor Core 打造：
+
+- Epilogue 算子融合：在神经网络中，GEMM 之后几乎总是紧跟着 `+ Bias`、`ReLU/GELU`、量化缩放或生成反向传播所需的辅助梯度 (如 `dGELU`、`dBias`) 。如果分开调用 Kernel，中间结果必须反复读写高延迟的全局显存 (HBM)。cuBLAS-Lt 允许把这些操作作为 Epilogue 注入到矩阵乘法的尾部，直接在寄存器中一次性算完再写回显存，大幅突破内存带宽瓶颈。
+- 算法搜索与缓存：将“计划(Plan)”与“执行(Execute)”分离。框架(如 PyTorch、TensorRT)可以在模型初始化阶段通过 `cublasLtMatmulAlgoGetHeuristic` 搜索出当前硬件和矩阵尺寸下的最快算法并缓存下来，实际推理时零开销直接调用。
+- 灵活的数据类型与布局：原生支持低精度混合计算(FP8、INT8、BF16、FP16 输入搭配 FP32 累加)以及各种非标准内存排布，最大化压榨 Tensor Core 算力。
+
+### 3. 为什么需要 cuBLAS-Xt (面向超大矩阵与多卡扩展)
+
+当遇到气候模拟、流体力学或超大规模特征值分解等高性能计算任务时，单个矩阵可能高达几十甚至上百 GB，单张 GPU 的显存根本装不下，此时就需要 cuBLAS-Xt (Extended)：
+
+- 突破单卡显存容量限制：cuBLAS-Xt 允许输入矩阵直接放在 CPU 内存中，它会在底层自动将超大矩阵切分成小块(Tiles)，通过 PCIe / NVLink 流水线式地搬运到 GPU 显存中计算，再把结果拼回 CPU 内存，完全掩盖数据传输延迟。
+- 多 GPU 自动并行扩展：只需传入多个 GPU 的设备 ID，cuBLAS-Xt 就会自动将计算任务负载均衡地分发到多张 GPU 上并行执行，开发者无需手动编写多线程、多流和点对点通信代码。
+- 聚焦 BLAS Level 3：由于数据搬运只有在计算密度极高时才划算，cuBLAS-Xt 专门针对矩阵-矩阵运算(如 GEMM、TRSM、SYRK 等 Level 3 操作)进行了优化。
