@@ -29,21 +29,18 @@ python -c "import torch; print(torch.__version__); print(torch.cuda.is_available
 
 # 项目虚拟环境
 
-进入项目根目录创建项目虚拟环境并激活(以原版 3DGS 为例)：
+进入项目根目录创建继承基础环境的轻量级虚拟环境并激活(以原版 3DGS 为例)：
 
 ```powershell
 D:
 cd D:/.Coding-Projects/gaussian-splatting
-python -m venv .venv
+D:/PythonVirtualEnvironment/PyTorchBasicVirtualEnvironment/Scripts/python.exe -m venv .venv --system-site-packages
 ./.venv/Scripts/Activate.ps1
 ```
 
 在已激活的项目虚拟环境中设置：
 
 ```powershell
-#连接到公用基础虚拟环境
-$env:PYTHONPATH = "D:/PythonVirtualEnvironment/PyTorchBasicVirtualEnvironment/Lib/site-packages"
-
 #验证是否连接到公用基础虚拟环境
 python -c "import torch; print(torch.__version__); print(torch.__file__); print(torch.cuda.is_available())"
 
