@@ -29,18 +29,23 @@ python -c "import torch; print(torch.__version__); print(torch.cuda.is_available
 
 # 项目虚拟环境
 
-进入项目根目录创建继承基础环境的轻量级虚拟环境并激活(以原版 3DGS 为例)：
+进入项目根目录创建虚拟环境(以原版 3DGS 为例)：
 
 ```powershell
 D:
 cd D:/.Coding-Projects/gaussian-splatting
-D:/PythonVirtualEnvironment/PyTorchBasicVirtualEnvironment/Scripts/python.exe -m venv .venv --system-site-packages
-./.venv/Scripts/Activate.ps1
+python -m venv .venv
 ```
 
 在已激活的项目虚拟环境中设置：
 
 ```powershell
+# 挂载 PyTorch 基础环境的包路径
+"D:/PythonVirtualEnvironment/PyTorchBasicVirtualEnvironment/Lib/site-packages" | Out-File -FilePath ".\.venv\Lib\site-packages\base_pytorch.pth" -Encoding ascii
+
+# 激活
+./.venv/Scripts/Activate.ps1
+
 #验证是否连接到公用基础虚拟环境
 python -c "import torch; print(torch.__version__); print(torch.__file__); print(torch.cuda.is_available())"
 
@@ -63,3 +68,12 @@ python -c "import diff_gaussian_rasterization; import simple_knn._C; import fuse
 python train.py -s tandt_db/tandt/train
 ```
 
+> 注：可以将多个基础环境写到一个或多个 `.pth` 文件中，从而实现加载多个基础环境中的包，加载的优先级：
+>
+> 1. 当前项目的 `.venv\Lib\site-packages`
+>
+> 2. `.pth` 文件中排在上面的路径
+>
+> 3. `.pth` 文件中排在下面的路径
+>
+> 同时挂载了两个环境，且这两个环境里都有同一个包，比如都装了 `numpy`，排在上面的那个环境的 `numpy` 会生效。
