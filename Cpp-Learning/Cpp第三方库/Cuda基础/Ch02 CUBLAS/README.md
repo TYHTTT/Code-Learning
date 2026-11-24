@@ -72,7 +72,7 @@ cuBLAS-Lt (Lightweight) 放弃了传统 BLAS 的函数签名，改用模块化�
 - 算法搜索与缓存：将“计划(Plan)”与“执行(Execute)”分离。框架(如 PyTorch、TensorRT)可以在模型初始化阶段通过 `cublasLtMatmulAlgoGetHeuristic` 搜索出当前硬件和矩阵尺寸下的最快算法并缓存下来，实际推理时零开销直接调用。
 - 灵活的数据类型与布局：原生支持低精度混合计算(FP8、INT8、BF16、FP16 输入搭配 FP32 累加)以及各种非标准内存排布，最大化压榨 Tensor Core 算力。
 
-## 3. 为什么需要 cuBLAS-Xt (面向超大矩阵与多卡扩展)
+## 为什么需要 cuBLAS-Xt (面向超大矩阵与多卡扩展)
 
 当遇到气候模拟、流体力学或超大规模特征值分解等高性能计算任务时，单个矩阵可能高达几十甚至上百 GB，单张 GPU 的显存根本装不下，此时就需要 cuBLAS-Xt (Extended)：
 
